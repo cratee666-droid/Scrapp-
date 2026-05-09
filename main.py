@@ -7,7 +7,10 @@ app = Flask(__name__)
 
 async def scrape_google(query, num_results=10):
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox']
+        )
         context = await browser.new_context(
             user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
                        'AppleWebKit/537.36 (KHTML, like Gecko) '
@@ -66,7 +69,14 @@ def search():
     if not query:
         return jsonify({'error': 'No query provided'}), 400
 
-    results = asyncio.run(scrape_google(query, num))
+    # Fix: create a new event loop instead of asyncio.run()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        results = loop.run_until_complete(scrape_google(query, num))
+    finally:
+        loop.close()
+
     return jsonify({'query': query, 'results': results})
 
 if __name__ == '__main__':
